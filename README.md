@@ -43,13 +43,11 @@ npm install
 Copy `.env.example` to `.env` and fill in the values:
 
 ```env
-MONGO_URI=
-JWT_SECRET=
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-GOOGLE_REFRESH_TOKEN=
+MONGO_URI = 
+JWT_SECRET = 
 GOOGLE_USER=
-PORT=5000
+GOOGLE_APP_PASSWORD=
+PORT = 8000
 ```
 
 ### Run
