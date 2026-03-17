@@ -115,7 +115,7 @@ export const generateHTMLTemplate = (otp) => {
             <div class="otp-code">${otp}</div>
           </div>
 
-          <p class="expiry">⏱ Expires in <span>10 minutes</span></p>
+          <p class="expiry">⏱ Expires in <span>5 minutes</span></p>
 
           <hr class="divider" />
 
@@ -129,6 +129,6 @@ export const generateHTMLTemplate = (otp) => {
 export const generateEmailTextTemplate = (otp) => {
   return `
     Here's your one-time code: ${otp}
-    This code will expire in 10 minutes.
+    This code will expire in 5 minutes.
   `;
 };
