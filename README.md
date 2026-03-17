@@ -19,7 +19,7 @@ A REST API for user authentication built with Node.js, Express, and MongoDB.
 - **Database:** MongoDB + Mongoose
 - **Auth:** JSON Web Tokens (jsonwebtoken)
 - **Hashing:** bcryptjs
-- **Email:** Nodemailer + Gmail OAuth2
+- **Email:** Gmail API (googleapis)
 - **Config:** dotenv
 
 ## Getting Started
@@ -28,12 +28,11 @@ A REST API for user authentication built with Node.js, Express, and MongoDB.
 
 - Node.js v18+
 - MongoDB
-- Gmail account with OAuth2 credentials
+- Gmail account with Google Cloud OAuth2 credentials
 
 ### Installation
-
 ```bash
-git clone https://github.com/your-username/authentication-system.git
+git clone https://github.com/SakshamWalia03/authentication-system.git
 cd authentication-system
 npm install
 ```
@@ -41,17 +40,20 @@ npm install
 ### Environment Variables
 
 Copy `.env.example` to `.env` and fill in the values:
-
 ```env
-MONGO_URI = 
-JWT_SECRET = 
+MONGO_URI=
+JWT_SECRET=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
 GOOGLE_USER=
-GOOGLE_APP_PASSWORD=
-PORT = 8000
+GOOGLE_REFRESH_TOKEN=
+PORT=8000
 ```
 
-### Run
+> **Note:** The refresh token must be generated with the `https://www.googleapis.com/auth/gmail.send` scope.
+> Use [Google OAuth Playground](https://developers.google.com/oauthplayground) with your own credentials to generate it.
 
+### Run
 ```bash
 # Development
 npm run dev
@@ -64,21 +66,20 @@ node server.js
 
 Base URL: `/api/auth`
 
-| Method | Endpoint         | Auth Required | Description                  |
-|--------|------------------|---------------|------------------------------|
-| POST   | /register        | No            | Register a new user          |
-| POST   | /login           | No            | Login and get tokens         |
-| POST   | /verify-email    | No            | Verify email with OTP        |
-| POST   | /resend-otp      | No            | Resend verification OTP      |
-| POST   | /refresh-token   | No            | Get a new access token       |
-| GET    | /details         | Yes           | Get current user info        |
-| POST   | /logout          | Yes           | Logout current session       |
-| POST   | /logout-all      | Yes           | Logout all sessions          |
+| Method | Endpoint       | Auth Required | Description               |
+|--------|----------------|---------------|---------------------------|
+| POST   | /register      | No            | Register a new user       |
+| POST   | /login         | No            | Login and get tokens      |
+| POST   | /verify-email  | No            | Verify email with OTP     |
+| POST   | /resend-otp    | No            | Resend verification OTP   |
+| POST   | /refresh-token | No            | Get a new access token    |
+| GET    | /details       | Yes           | Get current user info     |
+| POST   | /logout        | Yes           | Logout current session    |
+| POST   | /logout-all    | Yes           | Logout all sessions       |
 
 Protected routes require `Authorization: Bearer <accessToken>` header.
 
 ## Project Structure
-
 ```
 authentication-system/
 ├── server.js

@@ -1,35 +1,59 @@
-import nodemailer from "nodemailer";
+import { google } from "googleapis";
 import config from "../config/config.js";
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: config.GOOGLE_USER,
-    pass: config.GOOGLE_APP_PASSWORD,
-  },
+const oauth2Client = new google.auth.OAuth2(
+  config.GOOGLE_CLIENT_ID,
+  config.GOOGLE_CLIENT_SECRET,
+  "https://developers.google.com/oauthplayground"
+);
+
+oauth2Client.setCredentials({
+  refresh_token: config.GOOGLE_REFRESH_TOKEN,
 });
 
-// Verify the connection configuration
-transporter.verify((error, success) => {
-  if (error) {
-    console.error("Error connecting to email server:", error);
-  } else {
-    console.log("Email server is ready to send messages");
-  }
-});
+const buildRawEmail = (to, subject, html, text) => {
+  const boundary = "boundary_" + Date.now();
+  const lines = [
+    `From: "Auth Application" <${config.GOOGLE_USER}>`,
+    `To: ${to}`,
+    `Subject: ${subject}`,
+    `MIME-Version: 1.0`,
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    ``,
+    `--${boundary}`,
+    `Content-Type: text/plain; charset="UTF-8"`,
+    ``,
+    text || "",
+    ``,
+    `--${boundary}`,
+    `Content-Type: text/html; charset="UTF-8"`,
+    ``,
+    html || "",
+    ``,
+    `--${boundary}--`,
+  ];
+
+  return Buffer.from(lines.join("\r\n"))
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+};
 
 export const sendEmail = async (to, subject, text, html) => {
   try {
-    const info = await transporter.sendMail({
-      from: `"Auth Application" <${config.GOOGLE_USER}>`,
-      to,
-      subject,
-      text: text || "",
-      html,
+    const gmail = google.gmail({ version: "v1", auth: oauth2Client });
+
+    const raw = buildRawEmail(to, subject, html, text);
+
+    const response = await gmail.users.messages.send({
+      userId: "me",
+      requestBody: { raw },
     });
 
-    console.log("Message sent: %s", info.messageId);
+    console.log("Message sent:", response.data.id);
   } catch (error) {
-    console.error("Error sending email:", error);
+    console.error("Email sending failed:", error.message);
+    throw error;
   }
 };
