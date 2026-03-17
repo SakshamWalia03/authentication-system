@@ -1,6 +1,8 @@
 import User from "../models/user.model.js";
 import otpModel from "../models/otp.model.js";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import config from "../config/config.js";
 import {
   generateAccessToken,
   generateHTMLTemplate,
@@ -14,7 +16,6 @@ import { sendEmail } from "../services/sendEmail.js";
 const register = async (req, res) => {
   const { username, email, password } = req.body;
 
-  // Check username or email already exist
   const alreadyExist = await User.findOne({
     $or: [{ username }, { email }],
   });
@@ -44,13 +45,13 @@ const register = async (req, res) => {
     expiresAt: new Date(Date.now() + 5 * 60 * 1000),
   });
 
-  await sendEmail(email, "Verify your email", textTemplate,htmlTemplate);
+  await sendEmail(email, "Verify your email", textTemplate, htmlTemplate);
 
   const userObj = newUser.toObject();
   delete userObj.password;
 
   return res.status(201).json({
-    messgae: "User registered successfully",
+    message: "User registered successfully", 
     user: userObj,
   });
 };
@@ -65,7 +66,7 @@ const login = async (req, res) => {
     });
   }
 
-  if(!userExist.verified) {
+  if (!userExist.verified) {
     return res.status(403).json({
       message: "Email is not verified. Please verify your email to login",
     });
@@ -122,10 +123,16 @@ const logout = async (req, res) => {
     });
   }
 
-  await sessionModel.findOneAndUpdate(
-    { refreshTokenHash: await bcrypt.hash(refreshToken, 10) },
-    { revoked: true },
-  );
+  const sessions = await sessionModel.find({ user: req.user.id, revoked: false });
+
+  for (const session of sessions) {
+    const match = await bcrypt.compare(refreshToken, session.refreshTokenHash);
+    if (match) {
+      session.revoked = true;
+      await session.save();
+      break;
+    }
+  }
 
   res.clearCookie("refreshToken");
 
@@ -143,12 +150,12 @@ const logoutAll = async (req, res) => {
     });
   }
 
-  await sessionModel.findAllAndUpdate({ user: req.user.id }, { revoked: true });
+  await sessionModel.updateMany({ user: req.user.id }, { revoked: true });
 
   res.clearCookie("refreshToken");
 
   return res.status(200).json({
-    message: "User logged out successfully",
+    message: "User logged out from all sessions successfully",
   });
 };
 
@@ -161,18 +168,30 @@ const refreshToken = async (req, res) => {
     });
   }
 
-  const session = await sessionModel.findOne({
-    refreshTokenHash: await bcrypt.hash(refreshToken, 10),
-  });
-
-  if (!session || session.revoked) {
-    return res.status(401).json({
-      message: "Invalid refresh token",
-    });
-  }
+  let matchedSession = null;
 
   try {
     const decoded = jwt.verify(refreshToken, config.JWT_SECRET);
+
+    const sessions = await sessionModel.find({
+      user: decoded.id,
+      revoked: false,
+    });
+
+    for (const session of sessions) {
+      const match = await bcrypt.compare(refreshToken, session.refreshTokenHash);
+      if (match) {
+        matchedSession = session;
+        break;
+      }
+    }
+
+    if (!matchedSession) {
+      return res.status(401).json({
+        message: "Invalid refresh token",
+      });
+    }
+
     const accessToken = generateAccessToken(decoded.id, decoded.username);
     const newRefreshToken = generateRefreshToken(decoded.id, decoded.username);
 
@@ -183,8 +202,8 @@ const refreshToken = async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    session.refreshTokenHash = await bcrypt.hash(newRefreshToken, 10);
-    await session.save();
+    matchedSession.refreshTokenHash = await bcrypt.hash(newRefreshToken, 10);
+    await matchedSession.save();
 
     return res.status(200).json({
       message: "Access token refreshed successfully",
@@ -207,7 +226,7 @@ const verifyEmail = async (req, res) => {
     });
   }
 
-  if(userExist.verified) {
+  if (userExist.verified) {
     return res.status(400).json({
       message: "Email is already verified. Please login to continue",
     });
@@ -220,6 +239,12 @@ const verifyEmail = async (req, res) => {
   if (!otpRecord) {
     return res.status(404).json({
       message: "OTP not found, please request a new one",
+    });
+  }
+
+  if (otpRecord.expiresAt < new Date()) {
+    return res.status(400).json({
+      message: "OTP has expired, please request a new one",
     });
   }
 
@@ -250,7 +275,7 @@ export const resendOTP = async (req, res) => {
     });
   }
 
-  if(user.verified) {
+  if (user.verified) {
     return res.status(400).json({
       message: "Email is already verified",
     });
@@ -270,7 +295,12 @@ export const resendOTP = async (req, res) => {
   const otpHash = await bcrypt.hash(newOtp, 10);
 
   try {
-    await sendEmail(email, "Verify your email", generateEmailTextTemplate(newOtp), generateHTMLTemplate(newOtp));
+    await sendEmail(
+      email,
+      "Verify your email",
+      generateEmailTextTemplate(newOtp),
+      generateHTMLTemplate(newOtp)
+    );
   } catch (error) {
     return res.status(500).json({
       message: "Failed to send OTP. Please try again.",
